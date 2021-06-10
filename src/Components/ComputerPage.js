@@ -1,26 +1,20 @@
 import {useEffect, useState} from "react";
 import axios from "axios";
-import {Button} from "react-bootstrap";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
 export const ComputerPage = () => {
-    const [computers, setComputers] = useState();
-    const [attributions, setAttributions] = useState();
-    const [customers, setCustomers] = useState();
+    const [computers, setComputers] = useState([]);
+    const [attributions, setAttributions] = useState([]);
+    const [customers, setCustomers] = useState([]);
     const [actionComputer, setActionComputer] = useState(false);
     const [actionAttribution, setActionAttribution] = useState(false);
     const [actionCustomer, setActionCustomer] = useState(false);
     const [date, setDate] = useState(new Date());
-    const [dateFormated, setDateFormated] = useState(string);
 
     const schedulesTime = [
         1, 2, 3, 4, 5, 6, 7, 8
     ];
-
-    useEffect(() => {
-        setDateFormated('dd/mm/YYY');
-    }, [date])
 
     useEffect(() => {
         axios.get('http://localhost:1030/api/computers')
@@ -34,12 +28,9 @@ export const ComputerPage = () => {
         axios.get('http://localhost:1030/api/attributions')
             .then(res => {
                 setAttributions(res.data);
-                console.log(res.data['hydra:member']);
             })
         setActionAttribution(false);
     }, [actionAttribution])
-
-    console.log(attributions);
 
     useEffect(() => {
         axios.get('http://localhost:1030/api/customers')
@@ -48,8 +39,6 @@ export const ComputerPage = () => {
             })
         setActionCustomer(false);
     }, [actionCustomer])
-
-    console.log(customers);
 
     function saveComputer(event) {
         event.preventDefault();
@@ -104,17 +93,19 @@ export const ComputerPage = () => {
             })
     }
 
-    function createAssignment(schedule, idComputer) {
-
+    function createAssignment(schedule, idComputer)
+    {
+        let moment = require('moment');
         const dateElement = new Date(date);
+        let valueDate =  moment(dateElement);
 
         let newFormData = new FormData();
         newFormData.append('schedule', schedule);
         newFormData.append('computer', idComputer);
         newFormData.append('customer', document.getElementById("customerSelect" + idComputer + schedule).value);
-        newFormData.append('date', dateFormated);
+        newFormData.append('date', valueDate.format('L'));
 
-        axios.post('http://localhost:1030/api/assignement', newFormData)
+        axios.post('http://localhost:1030/api/attribution', newFormData)
             .then(res => {
                 console.log(res);
                 console.log(res.data);
@@ -128,11 +119,65 @@ export const ComputerPage = () => {
 
     let options =
         customers &&
-                customers.map(customer =>
-                    <option key={customer.id} value={customer.id}>
-                        {customer.lastname + ' ' + customer.firstname}
-                    </option>
-                )
+            customers.map(customer =>
+                <option key={customer.id} value={customer.id}>
+                    {customer.lastname + ' ' + customer.firstname}
+                </option>
+            )
+
+    function removeAssignation(idAttribution) {
+        let URL = 'http://localhost:1030/api/attributions/' + idAttribution;
+
+        axios.delete(URL)
+            .then(res => {
+                console.log(res);
+                console.log(res.data);
+                setActionAttribution(true);
+            })
+            .catch(function (error) {
+                // handle error
+                console.log(error);
+            })
+    }
+
+    function computeAssignment(idComputer, schedule) {
+        let customerName = '';
+        let idAttribution = '';
+        if (attributions && attributions.length !== 0) {
+            attributions.forEach((attribution) => {
+                if (attribution.computer.id === idComputer && attribution.schedule === schedule) {
+                    customerName = attribution.customer.lastname;
+                    idAttribution = attribution.id;
+                }
+            })
+        }
+        return (
+            <>
+                <div className="col-md-6 no-padding-margin">
+                    {customerName !== '' ? customerName : '----'}
+                </div>
+                <div className="col-md-4 justify-content-end d-flex no-padding-margin">
+                    {customerName !== '' ?
+                        <button type="button"
+                                className="btn btn-outline-warning"
+                                onClick={() => removeAssignation(idAttribution)}
+                        >
+                            <i className="fas fa-minus"/>
+                        </button>
+                    :
+                        <button type="button"
+                                className="btn btn-outline-success"
+                                data-toggle="modal" data-target={"#addAssignmentModal-" + idComputer + schedule}
+                                data-idcomputer={idComputer}
+                                data-schedule={schedule}
+                        >
+                            <i className="fas fa-plus"/>
+                        </button>
+                    }
+                </div>
+            </>
+        )
+    }
 
     return (
         <div className="text-gray no-padding-margin">
@@ -247,23 +292,8 @@ export const ComputerPage = () => {
                                                 <div className="col-md-2 no-padding-margin text-center font-weight-bold">
                                                     {schedule + 7}h
                                                 </div>
-                                                <div className="col-md-6 no-padding-margin">
-                                                    ----
-                                                    {/*{ getAssignment(computer.id, schedule)}*/}
-                                                </div>
-                                                <div className="col-md-2 d-flex no-padding-margin">
-                                                    <button type="button"
-                                                            className="btn btn-outline-success"
-                                                            data-toggle="modal" data-target={"#addAssignmentModal-" + computer.id + schedule}
-                                                            data-idcomputer={computer.id}
-                                                            data-schedule={schedule}
-                                                    >
-                                                        <i className="fas fa-plus" />
-                                                    </button>
-                                                    <Button type="button"  className="btn btn-warning">
-                                                        <i className="fas fa-minus" />
-                                                    </Button>
-                                                </div>
+
+                                                { computeAssignment(computer.id, schedule)}
 
                                                 <div className="modal fade"
                                                      id={"addAssignmentModal-" + computer.id + schedule}
